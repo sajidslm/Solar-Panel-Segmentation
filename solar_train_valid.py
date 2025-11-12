@@ -15,31 +15,13 @@ def reset_folder(path):
     os.makedirs(path)         # Recreate the empty folder
 
 
-## CONFIG folders
+def convert_json_2_Yolo_labels(config):
+    # Load COCO JSON and convert them into labels required for Yolo
 
-im_folder = "F:/Image Datasets/Averros/Solar Segmentation"
-CLASS_NAMES = ['Panel']  # Replace with your actual class names
-COCO_JSON_PATH = f'{im_folder}/panel_seg_coco.json'  # COCO JSON file
-IMAGE_DIR = f'{im_folder}/images/'  # Folder with original images
-YOLO_LABEL_DIR = f'{im_folder}/labels_yolo/' # dir containing yolo labels
-YOLO_LABELED_IM_DIR = f'{im_folder}/annotated_yolo_images/' # Folder to save annotated Yolo images to cross verify labels
-DATASET_DIR = f'{im_folder}/dataset/' #create image dataset for Yolo training
-
-TRAIN_RATIO = 0.6 # Train = 60%, Test = 40%, due to small dataset require more images for validation,
-
-os.makedirs(YOLO_LABELED_IM_DIR, exist_ok=True)
-os.makedirs(YOLO_LABEL_DIR, exist_ok=True)
-
-
-def prepare_data():
-    for split in ['train', 'val']:
-        reset_folder(os.path.join(DATASET_DIR, split, 'images'))
-        reset_folder(os.path.join(DATASET_DIR, split, 'labels'))
-
-    ## Load COCO JSON and convert them into labels required for Yolo
+    os.makedirs(config["YOLO_LABEL_DIR"], exist_ok=True)
 
     print("\n Converting JSON into .txt labels for Yolo........")
-    with open(COCO_JSON_PATH, 'r') as f:
+    with open(config["COCO_JSON_PATH"], 'r') as f:
         coco = json.load(f)
 
     # Build lookup tables
@@ -57,7 +39,7 @@ def prepare_data():
     for img_id, anns in tqdm(annotations_by_image.items()):
         img_name = os.path.splitext(image_id_to_filename[img_id])[0]
         img_w, img_h = image_id_to_size[img_id]
-        label_path = os.path.join(YOLO_LABEL_DIR, f"{img_name}.txt")
+        label_path = os.path.join(config["YOLO_LABEL_DIR"], f"{img_name}.txt")
 
         lines = []
         for ann in anns:
@@ -71,12 +53,15 @@ def prepare_data():
 
         with open(label_path, 'w') as f:
             f.write('\n'.join(lines))
+    return
 
 
-    ##
 
 
+def generate_annotated_images_from_YOLO_lables(config):
     # Created annotated images to verify labels
+    os.makedirs(config["YOLO_LABELED_IM_DIR"], exist_ok=True)
+
     try:
         font = ImageFont.truetype("arial.ttf", 16)
     except:
@@ -84,13 +69,13 @@ def prepare_data():
 
     # Process each image
     print("\n Creating Annotated images from Labels for verification............")
-    for image_file in tqdm(os.listdir(IMAGE_DIR)):
+    for image_file in tqdm(os.listdir(config["IMAGE_DIR"])):
         if not image_file.lower().endswith(('.jpg', '.jpeg', '.png')):
             continue
 
         base_name = os.path.splitext(image_file)[0]
-        label_path = os.path.join(YOLO_LABEL_DIR, f"{base_name}.txt")
-        image_path = os.path.join(IMAGE_DIR, image_file)
+        label_path = os.path.join(config["YOLO_LABEL_DIR"], f"{base_name}.txt")
+        image_path = os.path.join(config["IMAGE_DIR"], image_file)
 
         if not os.path.exists(label_path):
             continue
@@ -115,21 +100,31 @@ def prepare_data():
                 y2 = y_center + h / 2
 
                 draw.rectangle([x1, y1, x2, y2], outline="green", width=4)
-                label = CLASS_NAMES[int(class_id)] if int(class_id) < len(CLASS_NAMES) else str(class_id)
+                label = config["CLASS_NAMES"][int(class_id)] if int(class_id) < len(config["CLASS_NAMES"]) else str(class_id)
                 draw.text((x1+20, y1 + 10), label, fill="cyan", font=font)
 
-        output_path = os.path.join(YOLO_LABELED_IM_DIR, f"Y_{image_file}")
+        output_path = os.path.join(config["YOLO_LABELED_IM_DIR"], f"Y_{image_file}")
         image.save(output_path)
+    return
 
-    ##
+
+
+
+
+
+
+def split_train_val(config):
+    for split in ['train', 'val']:
+        reset_folder(os.path.join(config["DATASET_DIR"], split, 'images'))
+        reset_folder(os.path.join(config["DATASET_DIR"], split, 'labels'))
 
     print("\n Creating train / Val sets and data.yaml ............")
     # Get all image files
-    image_files = [f for f in os.listdir(IMAGE_DIR) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+    image_files = [f for f in os.listdir(config["IMAGE_DIR"]) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
     random.shuffle(image_files)
 
     # Split into train and val
-    split_index = int(len(image_files) * TRAIN_RATIO)
+    split_index = int(len(image_files) * config["TRAIN_RATIO"])
     train_files = image_files[:split_index]
     val_files = image_files[split_index:]
 
@@ -139,13 +134,13 @@ def prepare_data():
             label_file = f"{base_name}.txt"
 
             # Copy image
-            src_img = os.path.join(IMAGE_DIR, img_file)
-            dst_img = os.path.join(DATASET_DIR, split, 'images', img_file)
+            src_img = os.path.join(config["IMAGE_DIR"], img_file)
+            dst_img = os.path.join(config["DATASET_DIR"], split, 'images', img_file)
             shutil.copy2(src_img, dst_img)
 
             # Copy label
-            src_lbl = os.path.join(YOLO_LABEL_DIR, label_file)
-            dst_lbl = os.path.join(DATASET_DIR, split, 'labels', label_file)
+            src_lbl = os.path.join(config["YOLO_LABEL_DIR"], label_file)
+            dst_lbl = os.path.join(config["DATASET_DIR"], split, 'labels', label_file)
             if os.path.exists(src_lbl):
                 shutil.copy2(src_lbl, dst_lbl)
 
@@ -154,33 +149,57 @@ def prepare_data():
 
     # Create data.yaml
     data_yaml = {
-        'train': os.path.join(DATASET_DIR, 'train/images'),
-        'val': os.path.join(DATASET_DIR, 'val/images'),
-        'nc': len(CLASS_NAMES),
-        'names': CLASS_NAMES
+        'train': os.path.join(config["DATASET_DIR"], 'train/images'),
+        'val': os.path.join(config["DATASET_DIR"], 'val/images'),
+        'nc': len(config["CLASS_NAMES"]),
+        'names': config["CLASS_NAMES"]
     }
 
-    with open(os.path.join(DATASET_DIR, 'data.yaml'), 'w') as f:
+    with open(os.path.join(config["DATASET_DIR"], 'data.yaml'), 'w') as f:
         yaml.dump(data_yaml, f, default_flow_style=False)
-
     print("✅ Dataset prepared and data.yaml created.")
+    return
 
-def train_yolo():
-    EPOCHS = 100
-    IMG_SIZE = 640
-    BATCH_SIZE = 4
-    MODEL_NAME = "yolo11n.pt"
-    model = YOLO(MODEL_NAME)
+def train_yolo(config):
+    model = YOLO(config["MODEL_NAME"])
     model.train(
-        data=os.path.join(DATASET_DIR, 'data.yaml'),
-        epochs=EPOCHS,
-        imgsz=IMG_SIZE,
-        batch=BATCH_SIZE
+        data=os.path.join(config["DATASET_DIR"], 'data.yaml'),
+        epochs=config["EPOCHS"],
+        imgsz=config["IMG_SIZE"],
+        batch=config["BATCH_SIZE"]
     )
 
 
 if __name__ == "__main__":
-    print("\n 🚀 Preparing data for YOLO...")
-    prepare_data()
+
+    im_folder = "F:/Image Datasets/Averros/Solar Segmentation" # Dataset directory path
+
+    config_PATH_PARAM ={
+        "CLASS_NAMES": ['Panel'],  # Replace with your actual class names
+        "COCO_JSON_PATH": f'{im_folder}/panel_seg_coco.json',  # COCO JSON file
+        "IMAGE_DIR": f'{im_folder}/images/',  # Folder with original images
+        "YOLO_LABEL_DIR": f'{im_folder}/labels_yolo/',  # dir containing yolo labels
+        "YOLO_LABELED_IM_DIR": f'{im_folder}/annotated_images_from_YOLO_labels/',  # Folder to save annotated Yolo images to cross verify labels
+        "DATASET_DIR": f'{im_folder}/dataset/',  # create image dataset for Yolo training
+        "TRAIN_RATIO": 0.6,  # Train = 60%, Test = 40%, due to small dataset require more images for validation,
+    }
+
+    config_YOLO={
+        "EPOCHS": 150,
+        "IMG_SIZE": 640,
+        "BATCH_SIZE":4,
+        "MODEL_NAME": "yolo11n.pt",
+        "DATASET_DIR": "",
+    }
+
+    print("\n 🚀 Loading COCO JSON and converting into YOLO labels......")
+    convert_json_2_Yolo_labels(config_PATH_PARAM)
+
+    print("\n 🚀 Generating annotated images from YOLO labels for labels checking......")
+    generate_annotated_images_from_YOLO_lables(config_PATH_PARAM)
+
+    print("\n 🚀 Spliting images into Train and Val sets and generating data.yaml......")
+    split_train_val(config_PATH_PARAM)
+
     print("\n 🚀 Starting YOLOv11 training...")
-    train_yolo()
+    train_yolo(config_YOLO)
