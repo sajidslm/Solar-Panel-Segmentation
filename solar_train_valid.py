@@ -188,8 +188,8 @@ if __name__ == "__main__":
         "EPOCHS": 150,
         "IMG_SIZE": 640,
         "BATCH_SIZE":4,
-        "MODEL_NAME": "yolo11n.pt",
-        "DATASET_DIR": "",
+        "MODEL_NAME": "yolo11n.pt",        
+        "DATASET_DIR": config_PATH_PARAM["DATASET_DIR"],
     }
 
     print("\n 🚀 Loading COCO JSON and converting into YOLO labels......")
@@ -203,3 +203,4 @@ if __name__ == "__main__":
 
     print("\n 🚀 Starting YOLOv11 training...")
     train_yolo(config_YOLO)
+
