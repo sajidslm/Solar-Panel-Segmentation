@@ -9,3 +9,20 @@ The dataset contains annotations in COCO format, which are converted into .txt f
 ## Training and Validation
 
 The model employed for training is yolo11n.pt, though it can be substituted with other YOLO variants as needed. The training configuration includes the following parameters: 150 epochs, an image size of 640 pixels, and a batch size of 4.
+
+## Install Dependencies
+
+Use the requirements.txt file to install all necessary libraries. You can do this by running:
+pip install -r requirements.txt
+
+## Update Dataset Path
+
+Open the solar_train_valid.py script and locate the line:
+im_folder = "F:/Image Datasets/ Solar Segmentation"  # Dataset directory path
+
+## Run the Training Script
+
+Once the dependencies are installed and the dataset path is set, execute the script:
+python solar_train_valid.py
+
+Results
